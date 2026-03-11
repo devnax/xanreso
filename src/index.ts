@@ -1,27 +1,26 @@
 import { useEffect, useState } from "react";
-
 type Listener = () => void;
 
 export type ResourceOptions = {
-   intialLoad?: boolean;
+   initialLoad?: boolean;
    interval?: number;
 };
 
-type ResourceState<T, A> = {
+type ResourceState<T> = {
    data: { [key: string]: T | null };
-   error: unknown;
+   error: { [key: string]: unknown };
    loading: { [key: string]: boolean };
 };
 
-
 export function createResource<T, A extends object>(fetcher: (args: A) => Promise<T>, options?: ResourceOptions) {
-   const initialLoad = options?.intialLoad ?? true
-   const state: ResourceState<T, A> = {
+   const initialLoad = options?.initialLoad ?? true
+   const state: ResourceState<T> = {
       data: {},
-      error: null,
+      error: {},
       loading: {},
    };
 
+   const depsState: { [key: string]: string } = {}
    const listeners: { [key: string]: Set<Listener> } = {}
    let intervalId: any = null;
 
@@ -38,18 +37,20 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
       try {
          const result = await fetcher(args as any);
          state.data[_key] = result
-         state.error = null;
+         delete state.error[_key]
       } catch (err) {
-         state.error = err;
+         state.error[_key] = err;
       } finally {
          state.loading[_key] = false
          notify(_key);
       }
    }
-   return function useResource(args?: A) {
+
+   return function useResource(args?: A, deps?: any[]) {
       args = args ?? {} as any
       const key = JSON.stringify(args)
       const [, forceRender] = useState({});
+      const [init, setInit] = useState(false);
       const listener = () => forceRender({})
 
       useEffect(() => {
@@ -61,7 +62,6 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
       }, []);
 
       useEffect(() => {
-         if (initialLoad) run(key, args as A)
          if (!intervalId && options?.interval) {
             intervalId = setInterval(() => {
                state.data = {}
@@ -75,15 +75,35 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
          }
       }, [key]);
 
+      useEffect(() => {
+         if (deps) {
+            if (init) {
+               const dkey = JSON.stringify(deps)
+               const current = depsState[key]
+               if (current !== dkey) {
+                  depsState[key] = dkey
+                  delete state.data[key]
+                  run(key, args as A)
+               }
+            } else {
+               setInit(true)
+            }
+         } else if (initialLoad) {
+            run(key, args as A)
+         }
+      }, [deps])
+
       return {
-         data: state.data[key],
-         error: state.error,
+         data: state.data[key] || null,
+         error: state.error[key],
          isLoading: state.loading[key],
-         isSuccess: !state.loading[key] && !state.error,
-         isError: !!state.error,
+         isSuccess: !state.loading[key] && !state.error[key],
+         isError: !!state.error[key],
          reload: async () => {
-            delete state.data[key]
-            return run(key, args as A);
+            state.data = {}
+            for (let k in listeners) {
+               run(k, args as A)
+            }
          },
       };
    };

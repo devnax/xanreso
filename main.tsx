@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createResource } from './src'
 
@@ -11,23 +11,28 @@ export const useUserResource = createResource(
     return (await res.json()).results;
   },
   {
-    interval: 3000
+    initialLoad: false
+    // interval: 3000
   }
 );
 
 function Users() {
-  const users = useUserResource({ gender: "male" });
+  const [dep, setDep] = useState(0)
+  const users = useUserResource({ gender: "male" }, [dep]);
 
   return (
     <div>
 
-      <button onClick={users.reload}>Reload</button>
+      <button onClick={() => {
+        // users.reload()
+        setDep(Math.random())
+      }}>Reload</button>
     </div>
   );
 }
 
 const View = () => {
-  const users = useUserResource({ gender: "female" });
+  const users = useUserResource({ gender: "male" });
   if (users.isLoading) return <p>Loading...</p>;
   if (!users.data) return <p>No users</p>;
   return (
