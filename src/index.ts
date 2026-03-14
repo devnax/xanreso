@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 type Listener = () => void;
 
 export type ResourceOptions = {
-   initialLoad?: boolean;
    interval?: number;
 };
 
@@ -13,7 +12,6 @@ type ResourceState<T> = {
 };
 
 export function createResource<T, A extends object>(fetcher: (args: A) => Promise<T>, options?: ResourceOptions) {
-   const initialLoad = options?.initialLoad ?? true
    const state: ResourceState<T> = {
       data: {},
       error: {},
@@ -29,11 +27,11 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
       if (set) set.forEach((l) => l())
    }
 
-   const run = async (_key: string, args: A) => {
+   const run = async (_key: string, args: A, firstLoad = false) => {
       if (_key in state.data) return
       state.loading[_key] = true;
       state.data[_key] = null
-      notify(_key);
+      if (!firstLoad) notify(_key);
       try {
          const result = await fetcher(args as any);
          state.data[_key] = result
@@ -53,9 +51,15 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
       const [init, setInit] = useState(false);
       const listener = () => forceRender({})
 
+      useMemo(() => {
+         state.loading[key] = true
+      }, [])
+
       useEffect(() => {
          if (!(key in listeners)) listeners[key] = new Set
          listeners[key].add(listener)
+         setInit(true)
+
          return () => {
             listeners[key].delete(listener)
          }
@@ -83,22 +87,21 @@ export function createResource<T, A extends object>(fetcher: (args: A) => Promis
                if (current !== dkey) {
                   depsState[key] = dkey
                   delete state.data[key]
-                  run(key, args as A)
+                  run(key, args as A, true)
                }
-            } else {
-               setInit(true)
             }
-         } else if (initialLoad) {
-            run(key, args as A)
+         } else {
+            run(key, args as A, true)
          }
+
       }, [deps])
+
+      const loading = state.loading[key]
 
       return {
          data: state.data[key] || null,
+         isLoading: loading,
          error: state.error[key],
-         isLoading: state.loading[key],
-         isSuccess: !state.loading[key] && !state.error[key],
-         isError: !!state.error[key],
          reload: async () => {
             state.data = {}
             for (let k in listeners) {

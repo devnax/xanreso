@@ -11,7 +11,7 @@ export const useUserResource = createResource(
     return (await res.json()).results;
   },
   {
-    initialLoad: false
+    // initialLoad: false
     // interval: 3000
   }
 );
@@ -19,6 +19,7 @@ export const useUserResource = createResource(
 function Users() {
   const [dep, setDep] = useState(0)
   const users = useUserResource({ gender: "male" }, [dep]);
+  console.log(users);
 
   return (
     <div>
@@ -61,8 +62,8 @@ const App = () => {
   return (
     <div style={{ fontFamily: 'monospace,math, sans-serif', textAlign: 'center', marginTop: '50px' }}>
       <Users />
-      <View />
-      <Female />
+      {/* <View /> */}
+      {/* <Female /> */}
     </div>
   );
 }
